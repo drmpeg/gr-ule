@@ -636,7 +636,7 @@
     </param>
     <param>
       <key>fecblocks</key>
-      <value>3</value>
+      <value>2</value>
     </param>
     <param>
       <key>framesize</key>
@@ -707,7 +707,7 @@
     </param>
     <param>
       <key>fecblocks</key>
-      <value>3</value>
+      <value>2</value>
     </param>
     <param>
       <key>framesize</key>
@@ -759,7 +759,7 @@
     </param>
     <param>
       <key>numdatasyms</key>
-      <value>11</value>
+      <value>6</value>
     </param>
     <param>
       <key>paprmode1</key>
@@ -850,7 +850,7 @@
     </param>
     <param>
       <key>numdatasyms</key>
-      <value>11</value>
+      <value>6</value>
     </param>
     <param>
       <key>paprmode1</key>
@@ -1035,7 +1035,7 @@
     </param>
     <param>
       <key>numdatasyms</key>
-      <value>11</value>
+      <value>6</value>
     </param>
     <param>
       <key>preamble1</key>
@@ -1118,7 +1118,7 @@
     </param>
     <param>
       <key>numdatasyms</key>
-      <value>11</value>
+      <value>6</value>
     </param>
     <param>
       <key>paprmode1</key>
@@ -1809,7 +1809,7 @@
     </param>
     <param>
       <key>dev_addr</key>
-      <value>"send_frame_size=8192,num_send_frames=96,master_clock_rate=" + str(samp_rate*4)</value>
+      <value>"send_frame_size=8192,num_send_frames=128,master_clock_rate=" + str(samp_rate*4)</value>
     </param>
     <param>
       <key>dev_args</key>
@@ -2004,7 +2004,7 @@
     </param>
     <param>
       <key>mac_address</key>
-      <value>74:d0:2b:41:b2:a6</value>
+      <value>ac:de:48:55:4c:4b</value>
     </param>
     <param>
       <key>maxoutbuf</key>

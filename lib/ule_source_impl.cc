@@ -29,6 +29,7 @@
 #define FILTER "ether src "
 #define ULE_PID 0x35
 #undef DEBUG
+#define PING_REPLY
 
 namespace gr {
   namespace ule {
@@ -350,9 +351,10 @@ namespace gr {
       return (~sum);
     }
 
-    void
+    inline void
     ule_source_impl::ping_reply(void)
     {
+#ifdef PING_REPLY
       unsigned short *csum_ptr;
       unsigned short type_code;
       int csum;
@@ -386,6 +388,7 @@ namespace gr {
       for (int i = 0; i < 4; i++) {
         *saddr_ptr++ = addr[i];
       }
+#endif
     }
 
     inline void

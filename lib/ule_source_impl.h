@@ -158,7 +158,7 @@ namespace gr {
       int crc32_calc_partial(unsigned char *, int, int);
       int crc32_calc_final(unsigned char *, int, int);
       int checksum(unsigned short *, int);
-      void ping_reply(void);
+      inline void ping_reply(void);
       inline void dump_packet(void);
 
      public:

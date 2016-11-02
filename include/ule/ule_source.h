@@ -19,7 +19,7 @@
  */
 
 #ifndef INCLUDED_ULE_ULE_SOURCE_H
-#define INCLUDED_ULE_ULR_SOURCE_H
+#define INCLUDED_ULE_ULE_SOURCE_H
 
 #include <ule/api.h>
 #include <gnuradio/sync_block.h>

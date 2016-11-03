@@ -253,16 +253,18 @@ namespace gr {
       strcpy(dev, DEFAULT_IF);
       descr = pcap_open_live(dev, BUFSIZ, 0, -1, errbuf);
       if(descr == NULL) {
-        printf("Error calling pcap_open_live(): %s\n", errbuf);
+        std::stringstream s;
+        s << "Error calling pcap_open_live(): " << errbuf << std::endl;
+        throw std::runtime_error(s.str());
       }
       printf("MAC address = %s\n", mac_address);
       strcpy(filter, FILTER);
       strcat(filter, mac_address);
       if(pcap_compile(descr, &fp, filter, 0, netp) == -1) {
-        printf("Error calling pcap_compile()\n");
+        throw std::runtime_error("Error calling pcap_compile()\n");
       }
       if(pcap_setfilter(descr, &fp) == -1) {
-        printf("Error calling pcap_setfilter()\n");
+        throw std::runtime_error("Error calling pcap_setfilter()\n");
       }
 
       set_output_multiple(MPEG2_PACKET_SIZE * 200);

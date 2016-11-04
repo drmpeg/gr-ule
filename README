@@ -65,12 +65,11 @@ sudo dvbnet -p 53 -U
 This creates the interface dvb0_0 and listens for ULE packets on the
 MPEG-2 Transport Stream PID 53 (0x35).
 
-sudo ifconfig dvb0_0 hw ether ac:de:48:55:4c:4b
+sudo ifconfig dvb0_0 hw ether 02:00:48:55:4c:4b
 
 This assigns a MAC address to the dvb0_0 interface. This MAC address
 must match the MAC address used in the flow graph if you chose to
-use a different address. Note: For browsers that display a German
-flag, the private MAC address is ac-de-48-55-4c-4b.
+use a different address.
 
 sudo ifconfig dvb0_0 44.0.0.1 netmask 255.255.255.0 up
 

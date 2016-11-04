@@ -257,7 +257,6 @@ namespace gr {
         s << "Error calling pcap_open_live(): " << errbuf << std::endl;
         throw std::runtime_error(s.str());
       }
-      printf("MAC address = %s\n", mac_address);
       strcpy(filter, FILTER);
       strcat(filter, mac_address);
       if(pcap_compile(descr, &fp, filter, 0, netp) == -1) {

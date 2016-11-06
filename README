@@ -50,14 +50,7 @@ sudo setcap 'CAP_NET_RAW+eip CAP_NET_ADMIN+eip' /usr/bin/python2.7
 
 CAUTION: This allows any Python program to open network interfaces.
 
-After starting the flow graph, the DVB-T2 receiver needs to be started.
-This can be accomplished with the program dvbv5-zap. This program can
-be installed with sudo apt-get install dvb-tools. The dvb_channel.conf
-file is provided in the repository.
-
-dvbv5-zap -c dvb_channel.conf 429000000 -m
-
-Then a network interface is created with dvbnet. This program can be
+First, a network interface is created with dvbnet. This program can be
 installed with sudo apt-get install dvb-apps.
 
 sudo dvbnet -p 53 -U
@@ -68,13 +61,21 @@ MPEG-2 Transport Stream PID 53 (0x35).
 sudo ifconfig dvb0_0 hw ether 02:00:48:55:4c:4b
 
 This assigns a MAC address to the dvb0_0 interface. This MAC address
-must match the MAC address used in the flow graph if you chose to
-use a different address.
+must match the MAC address used in the flow graph (if you chose to
+use a different address).
+
+After starting the flow graph, the DVB-T2 receiver needs to be started.
+This can be accomplished with the program dvbv5-zap. This program can
+be installed with sudo apt-get install dvb-tools. The dvb_channel.conf
+file is provided in the repository.
+
+dvbv5-zap -c dvb_channel.conf 429000000 -m
 
 sudo ifconfig dvb0_0 44.0.0.1 netmask 255.255.255.0 up
 
 This assigns an IP address to the dvb0_0 interface and starts it.
-You must restart the interface every time dvbv5-zap is exited.
+You must restart the interface every time dvbv5-zap is exited and
+restarted.
 
 For now, the only supported network traffic is a ping loopback.
 
@@ -88,6 +89,9 @@ PING 44.0.0.3 (44.0.0.3) 56(84) bytes of data.
 64 bytes from 44.0.0.3: icmp_seq=3 ttl=64 time=173 ms
 64 bytes from 44.0.0.3: icmp_seq=4 ttl=64 time=173 ms
 64 bytes from 44.0.0.3: icmp_seq=5 ttl=64 time=165 ms
+
+If you're ready to try real traffic with a full duplex link, undef
+the #define PING_REPLY in ule_source_impl.cc.
 
 Build instructions:
 

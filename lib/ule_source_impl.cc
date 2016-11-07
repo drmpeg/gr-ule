@@ -76,6 +76,7 @@ namespace gr {
       pmt_count = 0;
       packet_count = 0;
       ule_continuity_counter = 0;
+      next_packet_valid = FALSE;
       crc32_init();
 
       /* null packet */
@@ -364,18 +365,18 @@ namespace gr {
       unsigned char addr[4];
 
       /* jam ping reply and calculate new checksum */
-      csum_ptr = (unsigned short *)(packet + sizeof(struct ether_header) + sizeof(struct ip));
+      csum_ptr = (unsigned short *)(packet_save + sizeof(struct ether_header) + sizeof(struct ip));
       type_code = *csum_ptr;
       type_code = (type_code & 0xff00) | 0x0;
       *csum_ptr++ = type_code;
       *csum_ptr = 0x0000;
-      csum_ptr = (unsigned short *)(packet + sizeof(struct ether_header) + sizeof(struct ip));
+      csum_ptr = (unsigned short *)(packet_save + sizeof(struct ether_header) + sizeof(struct ip));
       csum = checksum(csum_ptr, 64);
-      csum_ptr = (unsigned short *)(packet + sizeof(struct ether_header) + sizeof(struct ip) + 2);
+      csum_ptr = (unsigned short *)(packet_save + sizeof(struct ether_header) + sizeof(struct ip) + 2);
       *csum_ptr = ((csum & 0xff) << 8) | ((csum & 0xff00) >> 8);
 
       /* swap IP adresses */
-      ip_ptr = (struct ip*)(packet + sizeof(struct ether_header));
+      ip_ptr = (struct ip*)(packet_save + sizeof(struct ether_header));
       saddr_ptr = (unsigned char *)&ip_ptr->ip_src;
       daddr_ptr = (unsigned char *)&ip_ptr->ip_dst;
       for (int i = 0; i < 4; i++) {
@@ -419,7 +420,7 @@ namespace gr {
       struct pcap_pkthdr hdr;
       struct ether_header *eptr;
       unsigned char *ptr;
-      int offset, crc32;
+      int offset, temp_offset, remainder, crc32;
       TS_HEADER tsHeader;
       int pidULE = ULE_PID;
       unsigned int length;
@@ -454,8 +455,12 @@ namespace gr {
           }
         }
         if (packet_count == 0) {
-          packet = pcap_next(descr, &hdr);
+          if (next_packet_valid == FALSE) {
+            packet = pcap_next(descr, &hdr);
+          }
           if (packet != NULL) {
+            next_packet_valid = FALSE;
+            memcpy(packet_save, packet, hdr.len);
             if (hdr.len <= SNDU_PAYLOAD_PP_SIZE) {
               offset = 0;
               tsHeader.sync_byte = 0x47;
@@ -480,12 +485,12 @@ namespace gr {
 
               ping_reply();
 
-              eptr = (struct ether_header *)packet;
+              eptr = (struct ether_header *)packet_save;
               ptr = eptr->ether_dhost;
               for (int i = 0; i < ETHER_ADDR_LEN; i++) {
                 ule[offset++] = *ptr++;
               }
-              ptr = (unsigned char *)(packet + sizeof(struct ether_header));
+              ptr = (unsigned char *)(packet_save + sizeof(struct ether_header));
               for (int i = 0; i < hdr.len - sizeof(struct ether_header); i++) {
                 ule[offset++] = *ptr++;
               }
@@ -526,12 +531,12 @@ namespace gr {
 
               ping_reply();
 
-              eptr = (struct ether_header *)packet;
+              eptr = (struct ether_header *)packet_save;
               ptr = eptr->ether_dhost;
               for (int i = 0; i < ETHER_ADDR_LEN; i++) {
                 ule[offset++] = *ptr++;
               }
-              ptr = (unsigned char *)(packet + sizeof(struct ether_header));
+              ptr = (unsigned char *)(packet_save + sizeof(struct ether_header));
               if ((hdr.len - sizeof(struct ether_header)) < (SNDU_PAYLOAD_PP_SIZE - SNDU_BASE_HEADER_SIZE - ETHER_ADDR_LEN)) {
                 for (int i = 0; i < hdr.len - sizeof(struct ether_header); i++) {
                   ule[offset++] = *ptr++;
@@ -544,7 +549,7 @@ namespace gr {
               }
               crc32_partial = crc32_calc_partial(&ule[SNDU_PAYLOAD_PP_OFFSET], offset - SNDU_PAYLOAD_PP_OFFSET, 0xffffffff);
               packet_ptr = ptr;
-              packet_length = hdr.len - sizeof(struct ether_header) + ETHER_ADDR_LEN + sizeof(crc32) - (SNDU_PAYLOAD_PP_SIZE);
+              packet_length = hdr.len - sizeof(struct ether_header) + ETHER_ADDR_LEN + sizeof(crc32) - SNDU_PAYLOAD_PP_SIZE;
               shift = 3;
               if (packet_length < 0) {
                 while (packet_length < 0) {
@@ -557,10 +562,10 @@ namespace gr {
               memcpy(&out[produced], &ule[0], MPEG2_PACKET_SIZE);
               produced += MPEG2_PACKET_SIZE;
               if (hdr.len > (SNDU_PAYLOAD_PP_SIZE + SNDU_PAYLOAD_SIZE)) {
-                  packet_count = ((hdr.len - (SNDU_PAYLOAD_PP_SIZE + SNDU_PAYLOAD_SIZE)) / SNDU_PAYLOAD_SIZE) + 2;
+                packet_count = ((hdr.len - (SNDU_PAYLOAD_PP_SIZE + SNDU_PAYLOAD_SIZE)) / SNDU_PAYLOAD_SIZE) + 2;
               }
               else {
-                  packet_count = 1;
+                packet_count = 1;
               }
               if (produced == size) {
                 break;
@@ -571,35 +576,151 @@ namespace gr {
         if (packet_count != 0) {
           packet_count--;
           if (packet_count == 0) {
-            offset = 0;
-            tsHeader.sync_byte = 0x47;
-            tsHeader.transport_error_indicator = 0x0;
-            tsHeader.payload_unit_start_indicator = 0x0;
-            tsHeader.transport_priority = 0x1;
-            tsHeader.pid_12to8 = ((pidULE) >> 8) & 0x1f;
-            tsHeader.pid_7to0 = (pidULE) & 0xff;
-            tsHeader.transport_scrambling_control = 0x0;
-            tsHeader.adaptation_field_control = 0x1;
-            tsHeader.continuity_counter = ule_continuity_counter & 0xf;
-            ule_continuity_counter = (ule_continuity_counter + 1) & 0xf;
-            memcpy(&ule[offset], (unsigned char *)&tsHeader, TS_HEADER_SIZE);
-            offset += TS_HEADER_SIZE;
+            packet = pcap_next(descr, &hdr);
+            if (packet == NULL) {
+              offset = 0;
+              tsHeader.sync_byte = 0x47;
+              tsHeader.transport_error_indicator = 0x0;
+              tsHeader.payload_unit_start_indicator = 0x0;
+              tsHeader.transport_priority = 0x1;
+              tsHeader.pid_12to8 = ((pidULE) >> 8) & 0x1f;
+              tsHeader.pid_7to0 = (pidULE) & 0xff;
+              tsHeader.transport_scrambling_control = 0x0;
+              tsHeader.adaptation_field_control = 0x1;
+              tsHeader.continuity_counter = ule_continuity_counter & 0xf;
+              ule_continuity_counter = (ule_continuity_counter + 1) & 0xf;
+              memcpy(&ule[offset], (unsigned char *)&tsHeader, TS_HEADER_SIZE);
+              offset += TS_HEADER_SIZE;
 
-            if (shift < 3) {
-              while (shift >= 0) {
-                ule[offset++] = (crc32_partial >> (shift * 8)) & 0xff;
-                shift--;
+              if (shift < 3) {
+                while (shift >= 0) {
+                  ule[offset++] = (crc32_partial >> (shift * 8)) & 0xff;
+                  shift--;
+                }
+              }
+              else {
+                ptr = packet_ptr;
+                for (int i = 0; i < packet_length; i++) {
+                  ule[offset++] = *ptr++;
+                }
+
+                crc32 = crc32_calc_final(packet_ptr, packet_length, crc32_partial);
+                memcpy(&ule[offset], (unsigned char *) &crc32, sizeof(crc32));
+                offset += sizeof(crc32);
               }
             }
             else {
-              ptr = packet_ptr;
-              for (int i = 0; i < packet_length; i++) {
-                ule[offset++] = *ptr++;
-              }
+              if ((packet_length + sizeof(crc32)) > (SNDU_PAYLOAD_PP_SIZE - SNDU_BASE_HEADER_SIZE - ETHER_ADDR_LEN)) {
+                next_packet_valid = TRUE;
+                offset = 0;
+                tsHeader.sync_byte = 0x47;
+                tsHeader.transport_error_indicator = 0x0;
+                tsHeader.payload_unit_start_indicator = 0x0;
+                tsHeader.transport_priority = 0x1;
+                tsHeader.pid_12to8 = ((pidULE) >> 8) & 0x1f;
+                tsHeader.pid_7to0 = (pidULE) & 0xff;
+                tsHeader.transport_scrambling_control = 0x0;
+                tsHeader.adaptation_field_control = 0x1;
+                tsHeader.continuity_counter = ule_continuity_counter & 0xf;
+                ule_continuity_counter = (ule_continuity_counter + 1) & 0xf;
+                memcpy(&ule[offset], (unsigned char *)&tsHeader, TS_HEADER_SIZE);
+                offset += TS_HEADER_SIZE;
 
-              crc32 = crc32_calc_final(packet_ptr, packet_length, crc32_partial);
-              memcpy(&ule[offset], (unsigned char *) &crc32, sizeof(crc32));
-              offset += sizeof(crc32);
+                if (shift < 3) {
+                  while (shift >= 0) {
+                    ule[offset++] = (crc32_partial >> (shift * 8)) & 0xff;
+                    shift--;
+                  }
+                }
+                else {
+                  ptr = packet_ptr;
+                  for (int i = 0; i < packet_length; i++) {
+                    ule[offset++] = *ptr++;
+                  }
+
+                  crc32 = crc32_calc_final(packet_ptr, packet_length, crc32_partial);
+                  memcpy(&ule[offset], (unsigned char *) &crc32, sizeof(crc32));
+                  offset += sizeof(crc32);
+                }
+              }
+              else {
+                offset = 0;
+                tsHeader.sync_byte = 0x47;
+                tsHeader.transport_error_indicator = 0x0;
+                tsHeader.payload_unit_start_indicator = 0x1;
+                tsHeader.transport_priority = 0x1;
+                tsHeader.pid_12to8 = ((pidULE) >> 8) & 0x1f;
+                tsHeader.pid_7to0 = (pidULE) & 0xff;
+                tsHeader.transport_scrambling_control = 0x0;
+                tsHeader.adaptation_field_control = 0x1;
+                tsHeader.continuity_counter = ule_continuity_counter & 0xf;
+                ule_continuity_counter = (ule_continuity_counter + 1) & 0xf;
+                memcpy(&ule[offset], (unsigned char *)&tsHeader, TS_HEADER_SIZE);
+                offset += TS_HEADER_SIZE;
+
+                if (shift < 3) {
+                  ule[offset++] = shift + 1;    /* Payload Pointer */
+                  while (shift >= 0) {
+                    ule[offset++] = (crc32_partial >> (shift * 8)) & 0xff;
+                    shift--;
+                  }
+                }
+                else {
+                  ule[offset++] = packet_length + sizeof(crc32);    /* Payload Pointer */
+                  ptr = packet_ptr;
+                  for (int i = 0; i < packet_length; i++) {
+                    ule[offset++] = *ptr++;
+                  }
+
+                  crc32 = crc32_calc_final(packet_ptr, packet_length, crc32_partial);
+                  memcpy(&ule[offset], (unsigned char *) &crc32, sizeof(crc32));
+                  offset += sizeof(crc32);
+                }
+                memcpy(packet_save, packet, hdr.len);
+                temp_offset = offset;
+                length = hdr.len - sizeof(struct ether_header) + ETHER_ADDR_LEN + sizeof(crc32);
+                ule[offset++] = ((length >> 8) & 0x7f) | 0x0;
+                ule[offset++] = length & 0xff;
+                ule[offset++] = 0x08;    /* IPv4 */
+                ule[offset++] = 0x00;
+
+                ping_reply();
+
+                eptr = (struct ether_header *)packet_save;
+                ptr = eptr->ether_dhost;
+                for (int i = 0; i < ETHER_ADDR_LEN; i++) {
+                  ule[offset++] = *ptr++;
+                }
+                remainder = MPEG2_PACKET_SIZE - offset;
+                ptr = (unsigned char *)(packet_save + sizeof(struct ether_header));
+                if ((hdr.len - sizeof(struct ether_header)) < remainder) {
+                  for (int i = 0; i < hdr.len - sizeof(struct ether_header); i++) {
+                    ule[offset++] = *ptr++;
+                  }
+                }
+                else {
+                  for (int i = 0; i < remainder; i++) {
+                    ule[offset++] = *ptr++;
+                  }
+                }
+                crc32_partial = crc32_calc_partial(&ule[temp_offset], offset - temp_offset, 0xffffffff);
+                packet_ptr = ptr;
+                packet_length = hdr.len - sizeof(struct ether_header) + ETHER_ADDR_LEN + sizeof(crc32) - (offset - temp_offset);
+                shift = 3;
+                if (packet_length < 0) {
+                  while (packet_length < 0) {
+                    ule[offset++] = (crc32_partial >> (shift * 8)) & 0xff;
+                    packet_length++;
+                    shift--;
+                  }
+                }
+                if (hdr.len > ((offset - temp_offset) + SNDU_PAYLOAD_SIZE)) {
+                  packet_count = ((hdr.len - ((offset - temp_offset) + SNDU_PAYLOAD_SIZE)) / SNDU_PAYLOAD_SIZE) + 2;
+                }
+                else {
+                  packet_count = 1;
+                }
+              }
             }
 
             memset(&ule[offset], 0xff, MPEG2_PACKET_SIZE - offset);
@@ -638,7 +759,10 @@ namespace gr {
                 shift--;
               }
               if (shift == -1) {
-                  packet_count = 0;
+                packet_count = 0;
+              }
+              else {
+                packet_length = 0;
               }
             }
             else {

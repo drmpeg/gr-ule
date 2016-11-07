@@ -28,6 +28,9 @@
 #include <netinet/ip.h>
 #include <net/if.h>
 
+#define TRUE 1
+#define FALSE 0
+
 #define MPEG2_PACKET_SIZE 188
 #define PAYLOAD_POINTER_SIZE 1
 #define SNDU_BASE_HEADER_SIZE 4
@@ -144,6 +147,7 @@ namespace gr {
       unsigned char *packet_ptr;
       unsigned int packet_count;
       int packet_length, shift;
+      bool next_packet_valid;
       unsigned char pat[MPEG2_PACKET_SIZE];
       unsigned char pmt[MPEG2_PACKET_SIZE];
       unsigned char ule[MPEG2_PACKET_SIZE];
@@ -151,6 +155,7 @@ namespace gr {
       unsigned int crc32_table[256];
       pcap_t* descr;
       const unsigned char *packet;
+      unsigned char packet_save[4110];
       unsigned char ule_continuity_counter;
       int crc32_partial;
       void crc32_init(void);

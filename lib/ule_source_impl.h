@@ -27,6 +27,7 @@
 #include <netinet/if_ether.h>
 #include <netinet/ip.h>
 #include <net/if.h>
+#include "libdvbv5/dvb-file.h"
 
 #define TRUE 1
 #define FALSE 0
@@ -157,6 +158,7 @@ namespace gr {
       const unsigned char *packet;
       unsigned char packet_save[4110];
       unsigned char ule_continuity_counter;
+      struct dvb_v5_fe_parms *parms;
       int crc32_partial;
       void crc32_init(void);
       int crc32_calc(unsigned char *, int);
@@ -167,7 +169,7 @@ namespace gr {
       inline void dump_packet(void);
 
      public:
-      ule_source_impl(char *mac_address);
+      ule_source_impl(char *mac_address, char *filename, char *frequency);
       ~ule_source_impl();
 
       int work(int noutput_items,

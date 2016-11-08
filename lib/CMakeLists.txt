@@ -36,7 +36,7 @@ if(NOT ule_sources)
 endif(NOT ule_sources)
 
 add_library(gnuradio-ule SHARED ${ule_sources})
-target_link_libraries(gnuradio-ule ${Boost_LIBRARIES} ${GNURADIO_ALL_LIBRARIES} ${PCAP_LIBRARIES})
+target_link_libraries(gnuradio-ule ${Boost_LIBRARIES} ${GNURADIO_ALL_LIBRARIES} ${PCAP_LIBRARIES} ${DVBV5_LIBRARIES})
 set_target_properties(gnuradio-ule PROPERTIES DEFINE_SYMBOL "gnuradio_ule_EXPORTS")
 
 if(APPLE)

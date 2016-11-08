@@ -151,7 +151,7 @@
     </param>
     <param>
       <key>_coordinate</key>
-      <value>(8, 192)</value>
+      <value>(8, 224)</value>
     </param>
     <param>
       <key>gui_hint</key>
@@ -1987,6 +1987,10 @@
       <value></value>
     </param>
     <param>
+      <key>filename</key>
+      <value>dvb_channel.conf</value>
+    </param>
+    <param>
       <key>_enabled</key>
       <value>True</value>
     </param>
@@ -2013,6 +2017,10 @@
     <param>
       <key>minoutbuf</key>
       <value>0</value>
+    </param>
+    <param>
+      <key>frequency</key>
+      <value>429000000</value>
     </param>
   </block>
   <connection>

@@ -28,23 +28,23 @@
 #define DEFAULT_IF "dvb0_0"
 #define FILTER "ether src "
 #define ULE_PID 0x35
-#undef DEBUG
+#define DEBUG
 #define PING_REPLY
 
 namespace gr {
   namespace ule {
 
     ule_source::sptr
-    ule_source::make(char *mac_address)
+    ule_source::make(char *mac_address, char *filename, char *frequency)
     {
       return gnuradio::get_initial_sptr
-        (new ule_source_impl(mac_address));
+        (new ule_source_impl(mac_address, filename, frequency));
     }
 
     /*
      * The private constructor
      */
-    ule_source_impl::ule_source_impl(char *mac_address)
+    ule_source_impl::ule_source_impl(char *mac_address, char *filename, char *frequency)
       : gr::sync_block("ule_source",
               gr::io_signature::make(0, 0, 0),
               gr::io_signature::make(1, 1, sizeof(unsigned char)))
@@ -71,12 +71,17 @@ namespace gr {
       struct bpf_program fp;
       bpf_u_int32 netp;
       char filter[50];
+      struct dvb_file *dvb_file;
+      struct dvb_entry *entry;
+      int rc;
+      unsigned int sys, freq, f, data;
 
       pat_count = 0;
       pmt_count = 0;
       packet_count = 0;
       ule_continuity_counter = 0;
       next_packet_valid = FALSE;
+      parms = NULL;
       crc32_init();
 
       /* null packet */
@@ -253,18 +258,55 @@ namespace gr {
 
       strcpy(dev, DEFAULT_IF);
       descr = pcap_open_live(dev, BUFSIZ, 0, -1, errbuf);
-      if(descr == NULL) {
+      if (descr == NULL) {
         std::stringstream s;
         s << "Error calling pcap_open_live(): " << errbuf << std::endl;
         throw std::runtime_error(s.str());
       }
       strcpy(filter, FILTER);
       strcat(filter, mac_address);
-      if(pcap_compile(descr, &fp, filter, 0, netp) == -1) {
+      if (pcap_compile(descr, &fp, filter, 0, netp) == -1) {
         throw std::runtime_error("Error calling pcap_compile()\n");
       }
-      if(pcap_setfilter(descr, &fp) == -1) {
+      if (pcap_setfilter(descr, &fp) == -1) {
         throw std::runtime_error("Error calling pcap_setfilter()\n");
+      }
+
+      parms = dvb_fe_open(0, 0, 0, 0);
+      if (!parms) {
+        throw std::runtime_error("Error calling dvb_fe_open()\n");
+      }
+      sys = SYS_UNDEFINED;
+      dvb_file = dvb_read_file_format(filename, sys, FILE_DVBV5);
+      if (!dvb_file) {
+        throw std::runtime_error("Error calling dvb_file()\n");
+      }
+      freq = atoi(frequency);
+      if (freq) {
+        for (entry = dvb_file->first_entry; entry != NULL; entry = entry->next) {
+          dvb_retrieve_entry_prop(entry, DTV_FREQUENCY, &f);
+          if (f == freq) {
+            break;
+          }
+        }
+      }
+      if (!entry) {
+        dvb_file_free(dvb_file);
+        throw std::runtime_error("Can't find channel\n");
+      }
+      dvb_retrieve_entry_prop(entry, DTV_DELIVERY_SYSTEM, &sys);
+      dvb_set_compat_delivery_system(parms, sys);
+      for (int i = 0; i < entry->n_props; i++) {
+        data = entry->props[i].u.data;
+        if (entry->props[i].cmd == DTV_DELIVERY_SYSTEM) {
+          continue;
+        }
+        dvb_fe_store_parm(parms, entry->props[i].cmd, data);
+      }
+      dvb_file_free(dvb_file);
+      rc = dvb_fe_set_parms(parms);
+      if (rc < 0) {
+        throw std::runtime_error("Error calling dvb_fe_set_parms()\n");
       }
 
       set_output_multiple(MPEG2_PACKET_SIZE * 200);
@@ -275,7 +317,12 @@ namespace gr {
      */
     ule_source_impl::~ule_source_impl()
     {
-      pcap_close(descr);
+      if (parms) {
+        dvb_fe_close(parms);
+      }
+      if (descr) {
+        pcap_close(descr);
+      }
     }
 
     int

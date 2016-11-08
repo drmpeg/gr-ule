@@ -4,10 +4,22 @@
   <key>ule_ule_source</key>
   <category>[IP over TS (ULE)]</category>
   <import>import ule</import>
-  <make>ule.ule_source($mac_address)</make>
+  <make>ule.ule_source($mac_address, $filename, $frequency)</make>
   <param>
     <name>MAC Address</name>
     <key>mac_address</key>
+    <value></value>
+    <type>string</type>
+  </param>
+  <param>
+    <name>DVB Config File</name>
+    <key>filename</key>
+    <value></value>
+    <type>string</type>
+  </param>
+  <param>
+    <name>Receive Frequency</name>
+    <key>frequency</key>
     <value></value>
     <type>string</type>
   </param>

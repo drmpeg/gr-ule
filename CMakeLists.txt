@@ -118,6 +118,7 @@ endif(APPLE)
 find_package(CppUnit)
 find_package(Doxygen)
 find_package(Pcap)
+find_package(Dvbv5)
 
 # Search for GNU Radio and its components and versions. Add any
 # components required to the list of GR_REQUIRED_COMPONENTS (in all
@@ -132,7 +133,10 @@ if(NOT CPPUNIT_FOUND)
     message(FATAL_ERROR "CppUnit required to compile ule")
 endif()
 if(NOT PCAP_FOUND)
-    message(FATAL_ERROR "Pcap required to compile tspacket")
+    message(FATAL_ERROR "Pcap required to compile ule")
+endif()
+if(NOT DVBV5_FOUND)
+    message(FATAL_ERROR "Dvbv5 required to compile ule")
 endif()
 
 ########################################################################

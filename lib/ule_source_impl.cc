@@ -275,6 +275,7 @@ namespace gr {
      */
     ule_source_impl::~ule_source_impl()
     {
+      pcap_close(descr);
     }
 
     int

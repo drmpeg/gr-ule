@@ -28,7 +28,7 @@
 #define DEFAULT_IF "dvb0_0"
 #define FILTER "ether src "
 #define ULE_PID 0x35
-#define DEBUG
+#undef DEBUG
 #define PING_REPLY
 
 namespace gr {

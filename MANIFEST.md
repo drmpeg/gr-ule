@@ -1,16 +1,20 @@
-title: The ULE OOT Module
-brief: Short description of gr-ule
-tags: # Tags are arbitrary, but look at CGRAN what other authors are using
-  - sdr
+title: gr-ule
+brief: A block to transfer IP packets over MPEG-2 Transport Streams.
+tags:
+  - IP over DVB
 author:
-  - Author Name <authors@email.address>
+  - Ron Economos <w6rz@comcast.net>
 copyright_owner:
-  - Copyright Owner 1
-license:
-#repo: # Put the URL of the repository here, or leave blank for default
-#website: <module_website> # If you have a separate project website, put it here
-#icon: <icon_url> # Put a URL to a square image here that will be used as an icon on CGRAN
+  - Ron Economos <w6rz@comcast.net>
+license: GPL version 3 or later.
+repo: https://github.com/drmpeg/gr-ule
+#website:
+#icon:
 ---
-A longer, multi-line description of gr-ule.
-You may use some *basic* Markdown here.
-If left empty, it will try to find a README file instead.
+The goal of this project is to build a GNU Radio block that implements
+the Unidirectional Lightweight Encapsulation (ULE) for Transmission of
+IP Datagrams over an MPEG-2 Transport Stream (TS) protocol described in
+RFC 4326.
+
+<https://tools.ietf.org/html/rfc4326>
+

@@ -337,12 +337,9 @@ namespace gr {
     ule_source_impl::checksum(unsigned short *addr, int count)
     {
       int sum = 0;
-      int swap;
 
       while (count > 1) {
-        swap = ((*addr & 0xff) << 8) | ((*addr & 0xff00) >> 8);
-        addr++;
-        sum += swap;
+        sum += *addr++;
         count -= 2;
       }
       if (count > 0) {
@@ -358,22 +355,27 @@ namespace gr {
     {
 #ifdef PING_REPLY
       unsigned short *csum_ptr;
-      unsigned short type_code;
+      unsigned short header_length, total_length, type_code;
       int csum;
       struct ip *ip_ptr;
       unsigned char *saddr_ptr, *daddr_ptr;
       unsigned char addr[4];
 
       /* jam ping reply and calculate new checksum */
+      csum_ptr = (unsigned short *)(packet_save + sizeof(struct ether_header));
+      header_length = (*csum_ptr & 0xf) * 4;
+      csum_ptr = (unsigned short *)(packet_save + sizeof(struct ether_header) + 2);
+      total_length = ((*csum_ptr & 0xff) << 8) | ((*csum_ptr & 0xff00) >> 8);
+
       csum_ptr = (unsigned short *)(packet_save + sizeof(struct ether_header) + sizeof(struct ip));
       type_code = *csum_ptr;
       type_code = (type_code & 0xff00) | 0x0;
       *csum_ptr++ = type_code;
       *csum_ptr = 0x0000;
       csum_ptr = (unsigned short *)(packet_save + sizeof(struct ether_header) + sizeof(struct ip));
-      csum = checksum(csum_ptr, 64);
+      csum = checksum(csum_ptr, total_length - header_length);
       csum_ptr = (unsigned short *)(packet_save + sizeof(struct ether_header) + sizeof(struct ip) + 2);
-      *csum_ptr = ((csum & 0xff) << 8) | ((csum & 0xff00) >> 8);
+      *csum_ptr = csum;
 
       /* swap IP adresses */
       ip_ptr = (struct ip*)(packet_save + sizeof(struct ether_header));

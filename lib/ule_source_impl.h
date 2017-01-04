@@ -1,6 +1,6 @@
 /* -*- c++ -*- */
 /* 
- * Copyright 2016 Ron Economos.
+ * Copyright 2016,2017 Ron Economos.
  * 
  * This is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -148,6 +148,8 @@ namespace gr {
       unsigned char *packet_ptr;
       unsigned int packet_count;
       int packet_length, shift;
+      int ping_reply_mode;
+      int ipaddr_spoof_mode;
       bool next_packet_valid;
       unsigned char pat[MPEG2_PACKET_SIZE];
       unsigned char pmt[MPEG2_PACKET_SIZE];
@@ -160,16 +162,19 @@ namespace gr {
       unsigned char ule_continuity_counter;
       struct dvb_v5_fe_parms *parms;
       int crc32_partial;
+      unsigned char src_addr[sizeof(in_addr)];
+      unsigned char dst_addr[sizeof(in_addr)];
       void crc32_init(void);
       int crc32_calc(unsigned char *, int);
       int crc32_calc_partial(unsigned char *, int, int);
       int crc32_calc_final(unsigned char *, int, int);
-      int checksum(unsigned short *, int);
+      int checksum(unsigned short *, int, int);
       inline void ping_reply(void);
+      inline void ipaddr_spoof(void);
       inline void dump_packet(void);
 
      public:
-      ule_source_impl(char *mac_address, char *filename, char *frequency);
+      ule_source_impl(char *mac_address, char *filename, char *frequency, ule_ping_reply_t ping_reply, ule_ipaddr_spoof_t ipaddr_spoof, char *src_address, char *dst_address);
       ~ule_source_impl();
 
       int work(int noutput_items,

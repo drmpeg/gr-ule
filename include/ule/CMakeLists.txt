@@ -22,5 +22,6 @@
 ########################################################################
 install(FILES
     api.h
+    ule_config.h
     ule_source.h DESTINATION include/ule
 )

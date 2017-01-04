@@ -1,6 +1,6 @@
 /* -*- c++ -*- */
 /* 
- * Copyright 2016 Ron Economos.
+ * Copyright 2016,2017 Ron Economos.
  * 
  * This is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,22 +29,21 @@
 #define FILTER "ether src "
 #define ULE_PID 0x35
 #undef DEBUG
-#define PING_REPLY
 
 namespace gr {
   namespace ule {
 
     ule_source::sptr
-    ule_source::make(char *mac_address, char *filename, char *frequency)
+    ule_source::make(char *mac_address, char *filename, char *frequency, ule_ping_reply_t ping_reply, ule_ipaddr_spoof_t ipaddr_spoof, char *src_address, char *dst_address)
     {
       return gnuradio::get_initial_sptr
-        (new ule_source_impl(mac_address, filename, frequency));
+        (new ule_source_impl(mac_address, filename, frequency, ping_reply, ipaddr_spoof, src_address, dst_address));
     }
 
     /*
      * The private constructor
      */
-    ule_source_impl::ule_source_impl(char *mac_address, char *filename, char *frequency)
+    ule_source_impl::ule_source_impl(char *mac_address, char *filename, char *frequency, ule_ping_reply_t ping_reply, ule_ipaddr_spoof_t ipaddr_spoof, char *src_address, char *dst_address)
       : gr::sync_block("ule_source",
               gr::io_signature::make(0, 0, 0),
               gr::io_signature::make(1, 1, sizeof(unsigned char)))
@@ -69,10 +68,10 @@ namespace gr {
       char errbuf[PCAP_ERRBUF_SIZE];
       char dev[IFNAMSIZ];
       struct bpf_program fp;
-      bpf_u_int32 netp;
+      bpf_u_int32 netp = 0;
       char filter[50];
       struct dvb_file *dvb_file;
-      struct dvb_entry *entry;
+      struct dvb_entry *entry = NULL;
       int rc;
       unsigned int sys, freq, f, data;
 
@@ -82,6 +81,10 @@ namespace gr {
       ule_continuity_counter = 0;
       next_packet_valid = FALSE;
       parms = NULL;
+      ping_reply_mode = ping_reply;
+      ipaddr_spoof_mode = ipaddr_spoof;
+      inet_pton(AF_INET, src_address, &src_addr);
+      inet_pton(AF_INET, dst_address, &dst_addr);
       crc32_init();
 
       /* null packet */
@@ -296,7 +299,7 @@ namespace gr {
       }
       dvb_retrieve_entry_prop(entry, DTV_DELIVERY_SYSTEM, &sys);
       dvb_set_compat_delivery_system(parms, sys);
-      for (int i = 0; i < entry->n_props; i++) {
+      for (unsigned int i = 0; i < entry->n_props; i++) {
         data = entry->props[i].u.data;
         if (entry->props[i].cmd == DTV_DELIVERY_SYSTEM) {
           continue;
@@ -344,8 +347,6 @@ namespace gr {
     int
     ule_source_impl::crc32_calc_partial(unsigned char *buf, int size, int crc)
     {
-      int reverse;
-
       for (int i = 0; i < size; i++) {
         crc = (crc << 8) ^ crc32_table[((crc >> 24) ^ buf[i]) & 0xff];
       }
@@ -382,10 +383,8 @@ namespace gr {
     }
 
     int
-    ule_source_impl::checksum(unsigned short *addr, int count)
+    ule_source_impl::checksum(unsigned short *addr, int count, int sum)
     {
-      int sum = 0;
-
       while (count > 1) {
         sum += *addr++;
         count -= 2;
@@ -401,46 +400,87 @@ namespace gr {
     inline void
     ule_source_impl::ping_reply(void)
     {
-#ifdef PING_REPLY
       unsigned short *csum_ptr;
-      unsigned short header_length, total_length, type_code;
+      unsigned short header_length, total_length, type_code, fragment_offset;
       int csum;
       struct ip *ip_ptr;
       unsigned char *saddr_ptr, *daddr_ptr;
-      unsigned char addr[4];
+      unsigned char addr[sizeof(in_addr)];
 
       /* jam ping reply and calculate new checksum */
-      csum_ptr = (unsigned short *)(packet_save + sizeof(struct ether_header));
+      ip_ptr = (struct ip*)(packet_save + sizeof(struct ether_header));
+      csum_ptr = (unsigned short *)ip_ptr;
       header_length = (*csum_ptr & 0xf) * 4;
-      csum_ptr = (unsigned short *)(packet_save + sizeof(struct ether_header) + 2);
+      csum_ptr = &ip_ptr->ip_len;
       total_length = ((*csum_ptr & 0xff) << 8) | ((*csum_ptr & 0xff00) >> 8);
+      csum_ptr = &ip_ptr->ip_off;
+      fragment_offset = ((*csum_ptr & 0xff) << 8) | ((*csum_ptr & 0xff00) >> 8);
 
       csum_ptr = (unsigned short *)(packet_save + sizeof(struct ether_header) + sizeof(struct ip));
       type_code = *csum_ptr;
       type_code = (type_code & 0xff00) | 0x0;
-      *csum_ptr++ = type_code;
-      *csum_ptr = 0x0000;
-      csum_ptr = (unsigned short *)(packet_save + sizeof(struct ether_header) + sizeof(struct ip));
-      csum = checksum(csum_ptr, total_length - header_length);
-      csum_ptr = (unsigned short *)(packet_save + sizeof(struct ether_header) + sizeof(struct ip) + 2);
-      *csum_ptr = csum;
+      if ((fragment_offset & 0x1fff) == 0) {
+        *csum_ptr++ = type_code;
+        *csum_ptr = 0x0000;
+        csum_ptr = (unsigned short *)(packet_save + sizeof(struct ether_header) + sizeof(struct ip));
+        csum = checksum(csum_ptr, total_length - header_length, 0);
+        csum_ptr++;
+        *csum_ptr = csum;
+      }
 
       /* swap IP adresses */
-      ip_ptr = (struct ip*)(packet_save + sizeof(struct ether_header));
       saddr_ptr = (unsigned char *)&ip_ptr->ip_src;
       daddr_ptr = (unsigned char *)&ip_ptr->ip_dst;
-      for (int i = 0; i < 4; i++) {
+      for (unsigned int i = 0; i < sizeof(in_addr); i++) {
         addr[i] = *daddr_ptr++;
       }
       daddr_ptr = (unsigned char *)&ip_ptr->ip_dst;
-      for (int i = 0; i < 4; i++) {
+      for (unsigned int i = 0; i < sizeof(in_addr); i++) {
         *daddr_ptr++ = *saddr_ptr++;
       }
       saddr_ptr = (unsigned char *)&ip_ptr->ip_src;
-      for (int i = 0; i < 4; i++) {
+      for (unsigned int i = 0; i < sizeof(in_addr); i++) {
         *saddr_ptr++ = addr[i];
       }
-#endif
+    }
+
+    inline void
+    ule_source_impl::ipaddr_spoof(void)
+    {
+      unsigned short *csum_ptr;
+      unsigned short header_length, fragment_offset;
+      int csum;
+      struct ip *ip_ptr;
+      unsigned char *saddr_ptr, *daddr_ptr;
+
+      ip_ptr = (struct ip*)(packet_save + sizeof(struct ether_header));
+
+      saddr_ptr = (unsigned char *)&ip_ptr->ip_src;
+      for (unsigned int i = 0; i < sizeof(in_addr); i++) {
+        *saddr_ptr++ = src_addr[i];
+      }
+
+      daddr_ptr = (unsigned char *)&ip_ptr->ip_dst;
+      for (unsigned int i = 0; i < sizeof(in_addr); i++) {
+        *daddr_ptr++ = dst_addr[i];
+      }
+
+      csum_ptr = (unsigned short *)ip_ptr;
+      header_length = (*csum_ptr & 0xf) * 4;
+      csum_ptr = &ip_ptr->ip_off;
+      fragment_offset = ((*csum_ptr & 0xff) << 8) | ((*csum_ptr & 0xff00) >> 8);
+
+      if ((fragment_offset & 0x1fff) == 0) {
+        csum_ptr = &ip_ptr->ip_sum;
+        *csum_ptr = 0x0000;
+        csum_ptr = (unsigned short *)ip_ptr;
+        csum = checksum(csum_ptr, header_length, 0);
+        csum_ptr = &ip_ptr->ip_sum;
+        *csum_ptr = csum;
+
+        csum_ptr = (unsigned short *)(packet_save + sizeof(struct ether_header) + sizeof(struct ip) + 6);
+        *csum_ptr = 0x0000;
+      }
     }
 
     inline void
@@ -470,10 +510,10 @@ namespace gr {
       struct pcap_pkthdr hdr;
       struct ether_header *eptr;
       unsigned char *ptr;
-      int offset, temp_offset, remainder, crc32;
+      int crc32;
       TS_HEADER tsHeader;
       int pidULE = ULE_PID;
-      unsigned int length;
+      unsigned int remainder, offset, temp_offset, length;
 
       while (produced + MPEG2_PACKET_SIZE <= size) {
         pat_count++;
@@ -533,7 +573,12 @@ namespace gr {
               ule[offset++] = 0x08;    /* IPv4 */
               ule[offset++] = 0x00;
 
-              ping_reply();
+              if (ping_reply_mode) {
+                ping_reply();
+              }
+              if (ipaddr_spoof_mode) {
+                ipaddr_spoof();
+              }
 
               eptr = (struct ether_header *)packet_save;
               ptr = eptr->ether_dhost;
@@ -541,7 +586,7 @@ namespace gr {
                 ule[offset++] = *ptr++;
               }
               ptr = (unsigned char *)(packet_save + sizeof(struct ether_header));
-              for (int i = 0; i < hdr.len - sizeof(struct ether_header); i++) {
+              for (unsigned int i = 0; i < hdr.len - sizeof(struct ether_header); i++) {
                 ule[offset++] = *ptr++;
               }
               crc32 = crc32_calc(&ule[SNDU_PAYLOAD_PP_OFFSET], offset - SNDU_PAYLOAD_PP_OFFSET);
@@ -579,7 +624,12 @@ namespace gr {
               ule[offset++] = 0x08;    /* IPv4 */
               ule[offset++] = 0x00;
 
-              ping_reply();
+              if (ping_reply_mode) {
+                ping_reply();
+              }
+              if (ipaddr_spoof_mode) {
+                ipaddr_spoof();
+              }
 
               eptr = (struct ether_header *)packet_save;
               ptr = eptr->ether_dhost;
@@ -588,7 +638,7 @@ namespace gr {
               }
               ptr = (unsigned char *)(packet_save + sizeof(struct ether_header));
               if ((hdr.len - sizeof(struct ether_header)) < (SNDU_PAYLOAD_PP_SIZE - SNDU_BASE_HEADER_SIZE - ETHER_ADDR_LEN)) {
-                for (int i = 0; i < hdr.len - sizeof(struct ether_header); i++) {
+                for (unsigned int i = 0; i < hdr.len - sizeof(struct ether_header); i++) {
                   ule[offset++] = *ptr++;
                 }
               }
@@ -734,7 +784,12 @@ namespace gr {
                 ule[offset++] = 0x08;    /* IPv4 */
                 ule[offset++] = 0x00;
 
-                ping_reply();
+                if (ping_reply_mode) {
+                  ping_reply();
+                }
+                if (ipaddr_spoof_mode) {
+                  ipaddr_spoof();
+                }
 
                 eptr = (struct ether_header *)packet_save;
                 ptr = eptr->ether_dhost;
@@ -744,12 +799,12 @@ namespace gr {
                 remainder = MPEG2_PACKET_SIZE - offset;
                 ptr = (unsigned char *)(packet_save + sizeof(struct ether_header));
                 if ((hdr.len - sizeof(struct ether_header)) < remainder) {
-                  for (int i = 0; i < hdr.len - sizeof(struct ether_header); i++) {
+                  for (unsigned int i = 0; i < hdr.len - sizeof(struct ether_header); i++) {
                     ule[offset++] = *ptr++;
                   }
                 }
                 else {
-                  for (int i = 0; i < remainder; i++) {
+                  for (unsigned int i = 0; i < remainder; i++) {
                     ule[offset++] = *ptr++;
                   }
                 }
@@ -757,18 +812,27 @@ namespace gr {
                 packet_ptr = ptr;
                 packet_length = hdr.len - sizeof(struct ether_header) + ETHER_ADDR_LEN + sizeof(crc32) - (offset - temp_offset);
                 shift = 3;
-                if (packet_length < 0) {
-                  while (packet_length < 0) {
+                remainder = MPEG2_PACKET_SIZE - offset;
+                if (remainder != 0) {
+                  if (remainder >= 4) {
+                    remainder = 4;
+                    packet_count = 0;
+                  }
+                  else {
+                    packet_count = 1;
+                  }
+                  for (unsigned int i = 0; i < remainder; i++) {
                     ule[offset++] = (crc32_partial >> (shift * 8)) & 0xff;
-                    packet_length++;
                     shift--;
                   }
                 }
-                if (hdr.len > ((offset - temp_offset) + SNDU_PAYLOAD_SIZE)) {
-                  packet_count = ((hdr.len - ((offset - temp_offset) + SNDU_PAYLOAD_SIZE)) / SNDU_PAYLOAD_SIZE) + 2;
-                }
                 else {
-                  packet_count = 1;
+                  if (hdr.len > ((offset - temp_offset) + SNDU_PAYLOAD_SIZE)) {
+                    packet_count = ((hdr.len - ((offset - temp_offset) + SNDU_PAYLOAD_SIZE)) / SNDU_PAYLOAD_SIZE) + 2;
+                  }
+                  else {
+                    packet_count = 1;
+                  }
                 }
               }
             }

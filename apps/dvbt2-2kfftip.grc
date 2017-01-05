@@ -151,7 +151,7 @@
     </param>
     <param>
       <key>_coordinate</key>
-      <value>(8, 224)</value>
+      <value>(8, 272)</value>
     </param>
     <param>
       <key>gui_hint</key>
@@ -909,7 +909,7 @@
     </param>
     <param>
       <key>_coordinate</key>
-      <value>(304, 156)</value>
+      <value>(344, 156)</value>
     </param>
     <param>
       <key>_rotation</key>
@@ -1991,6 +1991,10 @@
       <value>dvb_channel.conf</value>
     </param>
     <param>
+      <key>dst_address</key>
+      <value>44.0.0.1</value>
+    </param>
+    <param>
       <key>_enabled</key>
       <value>True</value>
     </param>
@@ -2019,8 +2023,20 @@
       <value>0</value>
     </param>
     <param>
+      <key>ping_reply</key>
+      <value>PING_REPLY_ON</value>
+    </param>
+    <param>
       <key>frequency</key>
       <value>429000000</value>
+    </param>
+    <param>
+      <key>src_address</key>
+      <value>44.0.0.3</value>
+    </param>
+    <param>
+      <key>ipaddr_spoof</key>
+      <value>IPADDR_SPOOF_OFF</value>
     </param>
   </block>
   <connection>

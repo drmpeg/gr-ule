@@ -260,11 +260,31 @@ namespace gr {
       memset(&pmt[offset], 0xff, MPEG2_PACKET_SIZE - offset);
 
       strcpy(dev, DEFAULT_IF);
-      descr = pcap_open_live(dev, BUFSIZ, 0, -1, errbuf);
+      descr = pcap_create(dev, errbuf);
       if (descr == NULL) {
         std::stringstream s;
-        s << "Error calling pcap_open_live(): " << errbuf << std::endl;
+        s << "Error calling pcap_create(): " << errbuf << std::endl;
         throw std::runtime_error(s.str());
+      }
+      if (pcap_set_promisc(descr, 0) != 0) {
+        pcap_close(descr);
+        throw std::runtime_error("Error calling pcap_set_promisc()\n");
+      }
+      if (pcap_set_timeout(descr, -1) != 0) {
+        pcap_close(descr);
+        throw std::runtime_error("Error calling pcap_set_timeout()\n");
+      }
+      if (pcap_set_snaplen(descr, 65536) != 0) {
+        pcap_close(descr);
+        throw std::runtime_error("Error calling pcap_set_snaplen()\n");
+      }
+      if (pcap_set_buffer_size(descr, 1024 * 1024 * 16) != 0) {
+        pcap_close(descr);
+        throw std::runtime_error("Error calling pcap_set_buffer_size()\n");
+      }
+      if (pcap_activate(descr) != 0) {
+        pcap_close(descr);
+        throw std::runtime_error("Error calling pcap_activate()\n");
       }
       strcpy(filter, FILTER);
       strcat(filter, mac_address);

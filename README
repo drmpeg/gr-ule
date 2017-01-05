@@ -58,31 +58,46 @@ sudo dvbnet -p 53 -U
 This creates the interface dvb0_0 and listens for ULE packets on the
 MPEG-2 Transport Stream PID 53 (0x35).
 
-sudo ifconfig dvb0_0 hw ether 02:00:48:55:4c:4b
+sudo ip link set dev dvb0_0 address 02:00:48:55:4c:4b
 
 This assigns a MAC address to the dvb0_0 interface. This MAC address
 must match the MAC address used in the flow graph (if you chose to
 use a different address).
 
-sudo ifconfig dvb0_0 44.0.0.1 netmask 255.255.255.0 up
+sudo ip link set dvb0_0 up
+
+sudo ip addr add 44.0.0.1/24 broadcast 44.0.0.255 dev dvb0_0
 
 This assigns an IP address to the dvb0_0 interface and starts it.
 
-For now, the only supported network traffic is a ping loopback.
+Testing features:
 
-ping 44.0.0.3
+In order to test this block with just a single transmitter and
+receiver, two optional testing modes are available.
 
-If everything is working, you should see ping replies.
+The first is a ping reply feature. In this mode, the block modifies
+incoming ping requests into ping replies and swaps the source
+and destination IP addresses. This allows a normal ping command
+to complete. Ping packets are very useful for testing since the
+size and rate can be adjusted. Also, packet latency can be easily
+measured.
 
-PING 44.0.0.3 (44.0.0.3) 56(84) bytes of data.
-64 bytes from 44.0.0.3: icmp_seq=1 ttl=64 time=172 ms
-64 bytes from 44.0.0.3: icmp_seq=2 ttl=64 time=173 ms
-64 bytes from 44.0.0.3: icmp_seq=3 ttl=64 time=173 ms
-64 bytes from 44.0.0.3: icmp_seq=4 ttl=64 time=173 ms
-64 bytes from 44.0.0.3: icmp_seq=5 ttl=64 time=165 ms
+The second feature is IP address spoofing for UDP packets. In this
+mode the block modifies the source and destination IP address of
+UDP packets to selected values. This allows for a loopback test
+of video/audio over RTP using VLC. The destination IP address is
+set to the host that the VLC RTP decoder is running on. Video is
+useful for testing since dropped packets will cause bit-stream
+errors (that VLC will report if you start it on the command line).
 
-If you're ready to try real traffic with a full duplex link, undef
-the #define PING_REPLY in ule_source_impl.cc.
+Here's what my video loopback flow looks like:
+
+VLC RTP streaming to 44.0.0.3 -> dvb0_0 interface -> ULE Source block ->
+GNU Radio DVB-T2 transmitter -> Ettus B210 -> 30 dB attenuator ->
+PCTV 292e receiver -> dvb0_0 -> VLC RTP decoder from 44.0.0.1.
+
+Both of the features should be shut off for normal full-duplex
+operation.
 
 Dependencies:
 

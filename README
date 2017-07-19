@@ -70,6 +70,12 @@ sudo ip addr add 44.0.0.1/24 broadcast 44.0.0.255 dev dvb0_0
 
 This assigns an IP address to the dvb0_0 interface and starts it.
 
+To prevent Network Manager on Ubuntu from interfering with the dvb0_0
+interface, add these lines to /etc/NetworkManager/NetworkManager.conf.
+
+[keyfile]
+unmanaged-devices=interface-name:dvb0_0
+
 Testing features:
 
 In order to test this block with just a single transmitter and

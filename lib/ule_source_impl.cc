@@ -590,8 +590,9 @@ namespace gr {
               length = hdr.len - sizeof(struct ether_header) + ETHER_ADDR_LEN + sizeof(crc32);
               ule[offset++] = ((length >> 8) & 0x7f) | 0x0;
               ule[offset++] = length & 0xff;
-              ule[offset++] = 0x08;    /* IPv4 */
-              ule[offset++] = 0x00;
+              eptr = (struct ether_header *)packet_save;
+              ule[offset++] = eptr->ether_type & 0xff;
+              ule[offset++] = (eptr->ether_type >> 8) & 0xff;
 
               if (ping_reply_mode) {
                 ping_reply();
@@ -600,7 +601,6 @@ namespace gr {
                 ipaddr_spoof();
               }
 
-              eptr = (struct ether_header *)packet_save;
               ptr = eptr->ether_dhost;
               for (int i = 0; i < ETHER_ADDR_LEN; i++) {
                 ule[offset++] = *ptr++;
@@ -641,8 +641,9 @@ namespace gr {
               length = hdr.len - sizeof(struct ether_header) + ETHER_ADDR_LEN + sizeof(crc32);
               ule[offset++] = ((length >> 8) & 0x7f) | 0x0;
               ule[offset++] = length & 0xff;
-              ule[offset++] = 0x08;    /* IPv4 */
-              ule[offset++] = 0x00;
+              eptr = (struct ether_header *)packet_save;
+              ule[offset++] = eptr->ether_type & 0xff;
+              ule[offset++] = (eptr->ether_type >> 8) & 0xff;
 
               if (ping_reply_mode) {
                 ping_reply();
@@ -651,7 +652,6 @@ namespace gr {
                 ipaddr_spoof();
               }
 
-              eptr = (struct ether_header *)packet_save;
               ptr = eptr->ether_dhost;
               for (int i = 0; i < ETHER_ADDR_LEN; i++) {
                 ule[offset++] = *ptr++;
@@ -801,8 +801,9 @@ namespace gr {
                 length = hdr.len - sizeof(struct ether_header) + ETHER_ADDR_LEN + sizeof(crc32);
                 ule[offset++] = ((length >> 8) & 0x7f) | 0x0;
                 ule[offset++] = length & 0xff;
-                ule[offset++] = 0x08;    /* IPv4 */
-                ule[offset++] = 0x00;
+                eptr = (struct ether_header *)packet_save;
+                ule[offset++] = eptr->ether_type & 0xff;
+                ule[offset++] = (eptr->ether_type >> 8) & 0xff;
 
                 if (ping_reply_mode) {
                   ping_reply();
@@ -811,7 +812,6 @@ namespace gr {
                   ipaddr_spoof();
                 }
 
-                eptr = (struct ether_header *)packet_save;
                 ptr = eptr->ether_dhost;
                 for (int i = 0; i < ETHER_ADDR_LEN; i++) {
                   ule[offset++] = *ptr++;

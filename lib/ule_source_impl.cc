@@ -34,16 +34,16 @@ namespace gr {
   namespace ule {
 
     ule_source::sptr
-    ule_source::make(char *mac_address, char *filename, char *frequency, ule_ping_reply_t ping_reply, ule_ipaddr_spoof_t ipaddr_spoof, char *src_address, char *dst_address)
+    ule_source::make(char *mac_address, char *filename, char *frequency, char *call_sign, ule_ping_reply_t ping_reply, ule_ipaddr_spoof_t ipaddr_spoof, char *src_address, char *dst_address)
     {
       return gnuradio::get_initial_sptr
-        (new ule_source_impl(mac_address, filename, frequency, ping_reply, ipaddr_spoof, src_address, dst_address));
+        (new ule_source_impl(mac_address, filename, frequency, call_sign, ping_reply, ipaddr_spoof, src_address, dst_address));
     }
 
     /*
      * The private constructor
      */
-    ule_source_impl::ule_source_impl(char *mac_address, char *filename, char *frequency, ule_ping_reply_t ping_reply, ule_ipaddr_spoof_t ipaddr_spoof, char *src_address, char *dst_address)
+    ule_source_impl::ule_source_impl(char *mac_address, char *filename, char *frequency, char *call_sign, ule_ping_reply_t ping_reply, ule_ipaddr_spoof_t ipaddr_spoof, char *src_address, char *dst_address)
       : gr::sync_block("ule_source",
               gr::io_signature::make(0, 0, 0),
               gr::io_signature::make(1, 1, sizeof(unsigned char)))
@@ -55,15 +55,27 @@ namespace gr {
       PMT_ELEMENT pmtElement;
       PMT_STREAM_DESCRIPTOR streamDesc;
       PMT_REGISTRATION_DESCRIPTOR registrationDesc;
+      MGT_HEADER mgtHeader;
+      MGT_ELEMENT mgtElement;
+      MGT_TRAILER mgtTrailer;
+      TVCT_HEADER tvctHeader;
+      TVCT_ELEMENT tvctElement;
+      TVCT_SLD_DESCRIPTOR tvctDesc;
+      TVCT_SLD_DESCRIPTOR_ELEMENT tvctDescElement;
+      TVCT_TRAILER tvctTrailer;
       unsigned char tempBuffer[MPEG2_PACKET_SIZE];
       int offset, temp_offset;
       int pidPAT = 0;
       int pidPMT = 0x30;
       int pidVID = 0x31;
+      int pidPCR = 0x31;
       int pidAUD = 0x34;
       int pidULE = ULE_PID;
+      int pidMGT = 0x1ffb;
+      int pidTVCT = 0x1ffb;
       int pidNULL = 0x1fff;
       int programNum = 1;
+      int totalStreams = 2;
       int crc32;
       char errbuf[PCAP_ERRBUF_SIZE];
       char dev[IFNAMSIZ];
@@ -73,10 +85,12 @@ namespace gr {
       struct dvb_file *dvb_file;
       struct dvb_entry *entry = NULL;
       int rc;
-      unsigned int sys, freq, f, data;
+      unsigned int sys, freq, f, data, id_length;
 
       pat_count = 0;
       pmt_count = 0;
+      mgt_count = 0;
+      tvct_count = 0;
       packet_count = 0;
       ule_continuity_counter = 0;
       next_packet_valid = FALSE;
@@ -120,7 +134,7 @@ namespace gr {
       pat[offset] = 0x0;
       offset += 1;
 
-      temp_offset = 8;
+      temp_offset = PAT_HEADER_SIZE;
       patElement.program_number_h = (programNum >> 8) & 0xff;
       patElement.program_number_l = programNum & 0xff;
       patElement.reserved2 = 0x7;
@@ -258,6 +272,243 @@ namespace gr {
       offset += sizeof(crc32);
 
       memset(&pmt[offset], 0xff, MPEG2_PACKET_SIZE - offset);
+
+      /* MGT packet */
+      offset = 0;
+      tsHeader.sync_byte = 0x47;
+      tsHeader.transport_error_indicator = 0x0;
+      tsHeader.payload_unit_start_indicator = 0x1;
+      tsHeader.transport_priority = 0x0;
+      tsHeader.pid_12to8 = ((pidMGT) >> 8) & 0x1f;
+      tsHeader.pid_7to0 = (pidMGT) & 0xff;
+      tsHeader.transport_scrambling_control = 0x0;
+      tsHeader.adaptation_field_control = 0x1;
+      tsHeader.continuity_counter = 0;
+      memcpy(&mgt[offset], (unsigned char *)&tsHeader, TS_HEADER_SIZE);
+      offset += TS_HEADER_SIZE;
+
+      mgt[offset] = 0x0;
+      offset += 1;
+
+      temp_offset = MGT_HEADER_SIZE;
+
+      mgtElement.table_type_h = 0;
+      mgtElement.table_type_l = 0;
+      mgtElement.reserved0 = 0x7;
+      mgtElement.table_type_PID_h = (pidTVCT >> 8) & 0x1f;
+      mgtElement.table_type_PID_l = pidTVCT & 0xff;
+      mgtElement.reserved1 = 0x7;
+      mgtElement.table_type_version_number = 0x01;
+      mgtElement.number_bytes_h = 0x00;
+      mgtElement.number_bytes_mh = 0x00;
+      mgtElement.number_bytes_ml = 0x00;
+      mgtElement.number_bytes_l = 0x41;
+      mgtElement.reserved2 = 0xF;
+      mgtElement.table_type_descriptors_length_h = 0x00;
+      mgtElement.table_type_descriptors_length_l = 0x00;
+
+      memcpy(&tempBuffer[temp_offset], (char *) &mgtElement, MGT_ELEMENT_SIZE);
+      temp_offset += MGT_ELEMENT_SIZE;
+
+      mgtHeader.table_id = 0xC7;
+      mgtHeader.section_syntax_indicator = 1;
+      mgtHeader.private_indicator = 1;
+      mgtHeader.reserved0 = 0x3;
+      mgtHeader.section_length_h = ((temp_offset - 1 + sizeof(crc32)) >> 8) & 0xf;
+      mgtHeader.section_length_l = (temp_offset - 1 + sizeof(crc32)) & 0xff;
+
+      mgtHeader.table_id_extension_h = 0;
+      mgtHeader.table_id_extension_l = 0;
+      mgtHeader.reserved1 = 0x3;
+      mgtHeader.version_number = 0;
+      mgtHeader.current_next_indicator = 1;
+      mgtHeader.section_number = 0x0;
+      mgtHeader.last_section_number = 0x0;
+      mgtHeader.protocol_version = 0x0;
+      mgtHeader.tables_defined_h = 0;
+      mgtHeader.tables_defined_l = 1;
+      memcpy(&tempBuffer[0], (char *) &mgtHeader, MGT_HEADER_SIZE);
+
+      mgtTrailer.reserved = 0xF;
+      mgtTrailer.descriptors_length_h = 0x00;
+      mgtTrailer.descriptors_length_l = 0x00;
+      memcpy(&tempBuffer[temp_offset], (char *) &mgtTrailer, MGT_TRAILER_SIZE);
+      temp_offset += MGT_TRAILER_SIZE;
+
+      memcpy(&mgt[offset], &tempBuffer, temp_offset);
+      offset += temp_offset;
+
+      crc32 = crc32_calc(&tempBuffer[0], temp_offset);
+      memcpy(&mgt[offset], (unsigned char *) &crc32, sizeof(crc32));
+      offset += sizeof(crc32);
+
+      memset(&mgt[offset], 0xff, MPEG2_PACKET_SIZE - offset);
+
+      /* TVCT packet */
+      offset = 0;
+      tsHeader.sync_byte = 0x47;
+      tsHeader.transport_error_indicator = 0x0;
+      tsHeader.payload_unit_start_indicator = 0x1;
+      tsHeader.transport_priority = 0x0;
+      tsHeader.pid_12to8 = ((pidTVCT) >> 8) & 0x1f;
+      tsHeader.pid_7to0 = (pidTVCT) & 0xff;
+      tsHeader.transport_scrambling_control = 0x0;
+      tsHeader.adaptation_field_control = 0x1;
+      tsHeader.continuity_counter = 0;
+      memcpy(&tvct[offset], (unsigned char *)&tsHeader, TS_HEADER_SIZE);
+      offset += TS_HEADER_SIZE;
+
+      mgt[offset] = 0x0;
+      offset += 1;
+
+      temp_offset = TVCT_HEADER_SIZE;
+
+      id_length = strlen(call_sign);
+      tvctElement.short_name_1h = 0x0;
+      if (id_length > 0) {
+        tvctElement.short_name_1l = call_sign[0];
+      }
+      else {
+        tvctElement.short_name_1l = 0x0;
+      }
+      tvctElement.short_name_2h = 0x0;
+      if (id_length > 1) {
+        tvctElement.short_name_2l = call_sign[1];
+      }
+      else {
+        tvctElement.short_name_2l = 0x0;
+      }
+      tvctElement.short_name_3h = 0x0;
+      if (id_length > 2) {
+        tvctElement.short_name_3l = call_sign[2];
+      }
+      else {
+        tvctElement.short_name_3l = 0x0;
+      }
+      tvctElement.short_name_4h = 0x0;
+      if (id_length > 3) {
+        tvctElement.short_name_4l = call_sign[3];
+      }
+      else {
+        tvctElement.short_name_4l = 0x0;
+      }
+      tvctElement.short_name_5h = 0x0;
+      if (id_length > 4) {
+        tvctElement.short_name_5l = call_sign[4];
+      }
+      else {
+        tvctElement.short_name_5l = 0x0;
+      }
+      tvctElement.short_name_6h = 0x0;
+      if (id_length > 5) {
+        tvctElement.short_name_6l = call_sign[5];
+      }
+      else {
+        tvctElement.short_name_6l = 0x0;
+      }
+      tvctElement.short_name_7h = 0x0;
+      if (id_length > 6) {
+        tvctElement.short_name_7l = call_sign[6];
+      }
+      else {
+        tvctElement.short_name_7l = 0x0;
+      }
+      tvctElement.reserved0 = 0xF;
+      tvctElement.major_channel_number_h = (37 >> 6) & 0xf;
+      tvctElement.major_channel_number_l = (37) & 0x3f;
+      tvctElement.minor_channel_number_h = ((programNum) >> 8) & 0x3;
+      tvctElement.minor_channel_number_l = (programNum) & 0xff;
+      tvctElement.modulation_mode = 0x4;
+      tvctElement.carrier_frequency_h = 0x0;
+      tvctElement.carrier_frequency_mh = 0x0;
+      tvctElement.carrier_frequency_ml = 0x0;
+      tvctElement.carrier_frequency_l = 0x0;
+      tvctElement.channel_TSID_h = (0x8086 >> 8) & 0xff;
+      tvctElement.channel_TSID_l = 0x8086 & 0xff;
+      tvctElement.program_number_h = (programNum >> 8) & 0xff;
+      tvctElement.program_number_l = programNum & 0xff;
+      tvctElement.ETM_location = 0x1;
+      tvctElement.access_controlled = 0x0;
+      tvctElement.hidden = 0x0;
+      tvctElement.reserved1 = 0x3;
+      tvctElement.hide_guide = 0x1;
+      tvctElement.reserved2 = 0x1;
+      tvctElement.reserved3 = 0x3;
+      tvctElement.service_type = 0x2;
+      tvctElement.source_id_h = (0x1 >> 8) & 0xff;
+      tvctElement.source_id_l = (0x1) & 0xff;
+      tvctElement.reserved4 = 0x3f;
+      tvctElement.descriptors_length_h = (((totalStreams * 6) + 5) >> 8) & 0xff;
+      tvctElement.descriptors_length_l = ((totalStreams * 6) + 5) & 0xff;
+
+      memcpy(&tempBuffer[temp_offset], (char *) &tvctElement, TVCT_ELEMENT_SIZE);
+      temp_offset += TVCT_ELEMENT_SIZE;
+
+      tvctDesc.descriptor_tag = 0xA1;
+      tvctDesc.descriptor_length = (totalStreams * 6) + 3;
+      tvctDesc.reserved = 0x7;
+      tvctDesc.PCR_PID_h = (pidPCR >> 8) & 0x1f;
+      tvctDesc.PCR_PID_l = pidPCR & 0xff;
+      tvctDesc.number_elements = totalStreams;
+
+      memcpy(&tempBuffer[temp_offset], (char *) &tvctDesc, TVCT_DESCRIPTOR_SIZE);
+      temp_offset += TVCT_DESCRIPTOR_SIZE;
+
+      tvctDescElement.stream_type = 0x81;
+      tvctDescElement.reserved = 0x7;
+      tvctDescElement.elementary_PID_h = (pidAUD >> 8) & 0x1f;
+      tvctDescElement.elementary_PID_l = pidAUD & 0xff;
+      tvctDescElement.ISO_639_language_code_1 = 'e';
+      tvctDescElement.ISO_639_language_code_2 = 'n';
+      tvctDescElement.ISO_639_language_code_3 = 'g';
+
+      memcpy(&tempBuffer[temp_offset], (char *) &tvctDescElement, TVCT_DESCRIPTOR_ELEMENT_SIZE);
+      temp_offset += TVCT_DESCRIPTOR_ELEMENT_SIZE;
+
+      tvctDescElement.stream_type = 0x2;
+      tvctDescElement.reserved = 0x7;
+      tvctDescElement.elementary_PID_h = (pidVID >> 8) & 0x1f;
+      tvctDescElement.elementary_PID_l = pidVID & 0xff;
+      tvctDescElement.ISO_639_language_code_1 = 0x0;
+      tvctDescElement.ISO_639_language_code_2 = 0x0;
+      tvctDescElement.ISO_639_language_code_3 = 0x0;
+
+      memcpy(&tempBuffer[temp_offset], (char *) &tvctDescElement, TVCT_DESCRIPTOR_ELEMENT_SIZE);
+      temp_offset += TVCT_DESCRIPTOR_ELEMENT_SIZE;
+
+      tvctHeader.table_id = 0xC8;
+      tvctHeader.section_syntax_indicator = 1;
+      tvctHeader.private_indicator = 1;
+      tvctHeader.reserved0 = 0x3;
+      tvctHeader.section_length_h = ((temp_offset - 1 + sizeof(crc32)) >> 8) & 0xf;
+      tvctHeader.section_length_l = (temp_offset - 1 + sizeof(crc32)) & 0xff;
+
+      tvctHeader.transport_stream_id_h = (0x8086 >> 8) & 0xff;
+      tvctHeader.transport_stream_id_l = 0x8086 & 0xff;
+      tvctHeader.reserved1 = 0x3;
+      tvctHeader.version_number = 0;
+      tvctHeader.current_next_indicator = 1;
+      tvctHeader.section_number = 0x0;
+      tvctHeader.last_section_number = 0x0;
+      tvctHeader.protocol_version = 0x0;
+      tvctHeader.num_channels_in_section = 1;
+      memcpy(&tempBuffer[0], (char *) &tvctHeader, TVCT_HEADER_SIZE);
+
+      tvctTrailer.reserved = 0x3F;
+      tvctTrailer.additional_descriptors_length_h = 0x00;
+      tvctTrailer.additional_descriptors_length_l = 0x00;
+
+      memcpy(&tempBuffer[temp_offset], (char *) &tvctTrailer, TVCT_TRAILER_SIZE);
+      temp_offset += TVCT_TRAILER_SIZE;
+
+      memcpy(&tvct[offset], &tempBuffer, temp_offset);
+      offset += temp_offset;
+
+      crc32 = crc32_calc(&tempBuffer[0], temp_offset);
+      memcpy(&tvct[offset], (unsigned char *) &crc32, sizeof(crc32));
+      offset += sizeof(crc32);
+
+      memset(&tvct[offset], 0xff, MPEG2_PACKET_SIZE - offset);
 
       strcpy(dev, DEFAULT_IF);
       descr = pcap_create(dev, errbuf);
@@ -538,6 +789,8 @@ namespace gr {
       while (produced + MPEG2_PACKET_SIZE <= size) {
         pat_count++;
         pmt_count++;
+        mgt_count++;
+        tvct_count++;
         if (pat_count >= 500) {
           pat_count = 0;
           memcpy(&out[produced], &pat[0], MPEG2_PACKET_SIZE);
@@ -559,6 +812,34 @@ namespace gr {
           continuity_counter = (continuity_counter + 1) & 0xf;
           temp = (temp & 0xf0) | continuity_counter;
           pmt[3] = temp;
+          produced += MPEG2_PACKET_SIZE;
+          if (produced == size) {
+            break;
+          }
+        }
+        else if (mgt_count >= 500) {
+          mgt_count = 0;
+          memcpy(&out[produced], &mgt[0], MPEG2_PACKET_SIZE);
+          temp = mgt[3];
+          continuity_counter = temp & 0xf;
+          continuity_counter = (continuity_counter + 1) & 0xf;
+          temp = (temp & 0xf0) | continuity_counter;
+          mgt[3] = temp;
+          tvct[3] = temp;
+          produced += MPEG2_PACKET_SIZE;
+          if (produced == size) {
+            break;
+          }
+        }
+        else if (tvct_count >= 500) {
+          tvct_count = 0;
+          memcpy(&out[produced], &tvct[0], MPEG2_PACKET_SIZE);
+          temp = tvct[3];
+          continuity_counter = temp & 0xf;
+          continuity_counter = (continuity_counter + 1) & 0xf;
+          temp = (temp & 0xf0) | continuity_counter;
+          tvct[3] = temp;
+          mgt[3] = temp;
           produced += MPEG2_PACKET_SIZE;
           if (produced == size) {
             break;

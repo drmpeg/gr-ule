@@ -4,7 +4,7 @@
   <key>ule_ule_source</key>
   <category>[IP over TS (ULE)]</category>
   <import>import ule</import>
-  <make>ule.ule_source($mac_address, $filename, $frequency, $ping_reply.val, $ipaddr_spoof.val, $src_address, $dst_address)</make>
+  <make>ule.ule_source($mac_address, $filename, $frequency, $call_sign, $ping_reply.val, $ipaddr_spoof.val, $src_address, $dst_address)</make>
   <param>
     <name>MAC Address</name>
     <key>mac_address</key>
@@ -20,6 +20,12 @@
   <param>
     <name>Receive Frequency</name>
     <key>frequency</key>
+    <value></value>
+    <type>string</type>
+  </param>
+  <param>
+    <name>Call Sign ID</name>
+    <key>call_sign</key>
     <value></value>
     <type>string</type>
   </param>

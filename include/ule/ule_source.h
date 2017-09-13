@@ -46,7 +46,7 @@ namespace gr {
        * class. ule::ule_source::make is the public interface for
        * creating new instances.
        */
-      static sptr make(char *mac_address, char *filename, char *frequency, ule_ping_reply_t ping_reply, ule_ipaddr_spoof_t ipaddr_spoof, char *src_address, char *dst_address);
+      static sptr make(char *mac_address, char *filename, char *frequency, char *call_sign, ule_ping_reply_t ping_reply, ule_ipaddr_spoof_t ipaddr_spoof, char *src_address, char *dst_address);
     };
 
   } // namespace ule

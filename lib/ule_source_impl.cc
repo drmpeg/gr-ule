@@ -778,7 +778,6 @@ namespace gr {
       int size = noutput_items;
       int produced = 0;
       unsigned char temp, continuity_counter;
-      struct pcap_pkthdr hdr;
       struct ether_header *eptr;
       unsigned char *ptr;
       int crc32;

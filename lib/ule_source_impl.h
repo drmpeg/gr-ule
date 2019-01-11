@@ -306,6 +306,7 @@ namespace gr {
       unsigned char stuffing[MPEG2_PACKET_SIZE];
       unsigned int crc32_table[256];
       pcap_t* descr;
+      struct pcap_pkthdr hdr;
       const unsigned char *packet;
       unsigned char packet_save[4110];
       unsigned char ule_continuity_counter;

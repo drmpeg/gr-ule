@@ -30,7 +30,7 @@ RFC 4326.
 
 https://tools.ietf.org/html/rfc4326
 
-A gnuradio-companion flowgraph (vv009-4kshort.grc) for an Ettus Research
+A gnuradio-companion flowgraph (vv009-4kfft.grc) for an Ettus Research
 B2X0 SDR is included to provide a lower latency DVB-T2 configuration.
 
 Requirements:

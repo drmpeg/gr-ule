@@ -1,4 +1,4 @@
-# Copyright 2016,2017 Ron Economos
+# Copyright 2016,2017,2022 Ron Economos
 #
 # This file is part of gr-ule
 #
@@ -30,7 +30,7 @@ RFC 4326.
 
 https://tools.ietf.org/html/rfc4326
 
-A gnuradio-companion flowgraph (dvbt2_2kfftip.grc) for an Ettus Research
+A gnuradio-companion flowgraph (vv009-4kshort.grc) for an Ettus Research
 B2X0 SDR is included to provide a lower latency DVB-T2 configuration.
 
 Requirements:
@@ -46,7 +46,7 @@ Because the Pcap library is used to capture raw packets, the capabilities
 of the Python interpreter need to be increased. This only needs to be
 done once.
 
-sudo setcap 'CAP_NET_RAW+eip CAP_NET_ADMIN+eip' /usr/bin/python2.7
+sudo setcap 'CAP_NET_RAW+eip CAP_NET_ADMIN+eip' /usr/bin/python3.x
 
 CAUTION: This allows any Python program to open network interfaces.
 
